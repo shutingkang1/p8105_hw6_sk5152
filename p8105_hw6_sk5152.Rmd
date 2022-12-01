@@ -1,0 +1,26 @@
+---
+title: "p8105_hw6_sk5152"
+author: "Shuting Kang"
+date: "2022-12-01"
+output: github_document
+---
+```{r}
+library(tidyverse)
+```
+## Problem 1 
+For this problem, we’ll use the 2017 Central Park weather data that we’ve seen elsewhere. The code chunk below (adapted from the course website) will download these data.
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+## Problem 2
+
