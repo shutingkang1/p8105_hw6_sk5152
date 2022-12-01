@@ -34,9 +34,9 @@ describe the raw data:
 
 `r nrow(raw_data)` observations and `r ncol(raw_data)` variables, included `r names(raw_data)`
 
-Create a city_state variable (e.g. “Baltimore, MD”), and a binary variable indicating whether the homicide is solved.
+Create a city_state variable (e.g. “Baltimore, MD”), and a binary variable indicating whether the homicide is solved. I creata homicides_status binomial variable, 1 represent solved and 0 represent unsolved.
 
-Omit cities Dallas, TX; Phoenix, AZ; and Kansas City, MO – these don’t report victim race. Also omit Tulsa, AL – this is a data entry mistake. For this problem, limit your analysis those for whom victim_race is white or black. Be sure that victim_age is numeric.
+Omit cities Dallas, TX; Phoenix, AZ; and Kansas City, MO – these don’t report victim race. Also omit Tulsa, AL – this is a data entry mistake. For this problem, limit your analysis those for whom victim_race is white or black. Be sure that victim_age is numeric. 
 
 
 ```{r}
@@ -44,12 +44,13 @@ homicides_df<-
   raw_data%>%
   mutate(
     city_state=str_c(city,',',state),
-    homicides_status=if_else(disposition=="Closed by arrest","solved","unsolved"),
+    homicides_status=if_else(disposition=="Closed by arrest",1,0),
     victim_age=as.numeric(victim_age)
     )%>%
   filter(city_state!=c("Dallas,TX","Phoenix,AZ","Kansas City,MO","Tulsa,AL"),
          victim_race==c("White","Black"))%>%
   drop_na(victim_age)
+homicides_df
 ```
 For the city of Baltimore, MD, use the glm function to fit a logistic regression with resolved vs unresolved as the outcome and victim age, sex and race as predictors. Save the output of glm as an R object; apply the broom::tidy to this object; and obtain the estimate and confidence interval of the adjusted odds ratio for solving homicides comparing male victims to female victims keeping all other variables fixed.
 ```{r}
@@ -57,7 +58,20 @@ homicides_Baltimore<-
   homicides_df%>%
   filter(city_state=="Baltimore,MD")
 
-homicides_Baltimore
+
+fit=glm(homicides_status~victim_age+victim_sex+victim_race,family = binomial(),homicides_Baltimore)%>%
+  broom::tidy()
+
+Male_Baltimore<-fit%>%
+  filter(term=="victim_sexMale")%>%
+  mutate(
+    odd_ratio=exp(estimate),
+    conf_lower=exp(estimate-1.96*std.error),
+    conf_higher=exp(estimate+1.96*std.error)
+  )
+
+Male_Baltimore
+
 ```
 
 
