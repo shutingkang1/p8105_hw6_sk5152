@@ -7,6 +7,7 @@ output: github_document
 ```{r}
 library(tidyverse)
 library(dplyr)
+library(modelr)
 ```
 ## Problem 1 
 For this problem, we’ll use the 2017 Central Park weather data that we’ve seen elsewhere. The code chunk below (adapted from the course website) will download these data.
@@ -83,7 +84,6 @@ Male_Baltimore
 Now run glm for each of the cities in your dataset, and extract the adjusted odds ratio (and CI) for solving homicides comparing male victims to female victims. Do this within a “tidy” pipeline, making use of purrr::map, list columns, and unnest as necessary to create a dataframe with estimated ORs and CIs for each city.
 
 ```{r}
-library(modelr)
 homicide_all_cities = 
   homicides_df %>% 
   nest(data = -city_state) %>% 
@@ -113,7 +113,7 @@ homicide_all_cities %>%
   ) %>% 
   ggplot(aes(x = city_state, y = adjusted_odd_ratio, color = city_state)) + 
   geom_point() + 
-  geom_errorbar(aes(ymin = conf_low, ymax = conf_low)) + 
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high)) + 
   theme(legend.position = "none") + 
   theme(axis.text.x = element_text(size=6, angle=90, hjust = 1)) + 
   labs(
@@ -124,5 +124,107 @@ homicide_all_cities %>%
 homicide_plot
 ```
 
+comments:
 
 ## Problem 3
+
+ will analyze data gathered to understand the effects of several variables on a child’s birthweight. This dataset, available here, consists of roughly 4000 children and includes the following variables:
+
+babysex: baby’s sex (male = 1, female = 2)
+bhead: baby’s head circumference at birth (centimeters)
+blength: baby’s length at birth (centimeteres)
+bwt: baby’s birth weight (grams)
+delwt: mother’s weight at delivery (pounds)
+fincome: family monthly income (in hundreds, rounded)
+frace: father’s race (1 = White, 2 = Black, 3 = Asian, 4 = Puerto Rican, 8 = Other, 9 = Unknown)
+gaweeks: gestational age in weeks
+malform: presence of malformations that could affect weight (0 = absent, 1 = present)
+menarche: mother’s age at menarche (years)
+mheigth: mother’s height (inches)
+momage: mother’s age at delivery (years)
+mrace: mother’s race (1 = White, 2 = Black, 3 = Asian, 4 = Puerto Rican, 8 = Other)
+parity: number of live births prior to this pregnancy
+pnumlbw: previous number of low birth weight babies
+pnumgsa: number of prior small for gestational age babies
+ppbmi: mother’s pre-pregnancy BMI
+ppwt: mother’s pre-pregnancy weight (pounds)
+smoken: average number of cigarettes smoked per day during pregnancy
+wtgain: mother’s weight gain during pregnancy (pounds)
+
+
+Stage1:Load the raw data 
+
+```{r}
+raw_data2<-read.csv(file = "./data/birthweight.csv")
+raw_data2
+```
+clean the data for regression analysis
+1. convert categorical variable from numeric type to factor: 
+babysex,frace,malform,mrace
+2.check the missing
+```{r}
+clean_data<-
+  raw_data2%>%
+  mutate(
+    babysex=as.factor(babysex),
+    frace=as.factor(frace),
+    malform=as.factor(malform),
+    mrace=as.factor(mrace)
+  )%>%
+  drop_na()%>%
+  select(-pnumlbw,-pnumsga)
+clean_data
+  
+```
+
+propose a regression model for birthweight. 
+
+choose the reasonable variables based on the correlation map, I decided to choose the top five variables that most related to the bwt (target variable).
+bhead,blength,frace,gaweeks,and mrace.
+
+```{r}
+clean_data2<-
+  raw_data2%>%
+  janitor::clean_names()%>%
+  select(-pnumlbw,-pnumsga)%>%
+  drop_na()
+corrplot(cor(clean_data2),method='color',order='alphabet')
+clean_data2
+```
+our regression model
+```{r}
+model_1<-lm(bwt ~ bhead+blength+gaweeks+frace+mrace, data = clean_data)
+summary(model_1)
+
+model_1_plot<-
+  modelr::add_residuals(model_1)%>%
+  modelr::add_predictions(model_1)%>%
+  ggplot(aes(x=pred,y=resid))+
+  geom_point()+
+  geom_smooth(method="lm")
+```
+
+
+show a plot of model residuals against fitted values- use add_predictions and add_residuals in making this plot 
+```{r}
+fit_1<-lm(bwt ~ bhead + blength + gaweeks+ frace + mrace, data = clean_data)
+fit_1_plot<-
+  modelr::add_residuals(fit_1)%>%
+  modelr::add_predictions(fit_1)%>%
+  ggplot(aes(x=pred,y=resid))+
+  geom_point()+
+  geom_smooth(method="lm")
+  
+```
+
+compare my model to two others 
+
+One using length at birth and gestational age as predictors (main effects only)
+One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+
+```{r}
+cv
+
+```
+
+Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
