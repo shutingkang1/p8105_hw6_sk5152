@@ -29,7 +29,6 @@ weather_df =
 ```{r}
 raw_data<-read_csv(file="./data/homicide-data.csv")%>%
   janitor::clean_names()
-raw_data
 ```
 describe the raw data: 
 
@@ -51,17 +50,13 @@ homicides_df<-
   filter(city_state!=c("Dallas,TX","Phoenix,AZ","Kansas City,MO","Tulsa,AL"),
          victim_race==c("White","Black"))%>%
   drop_na(victim_age)
-homicides_df
 ```
 For the city of Baltimore, MD, use the glm function to fit a logistic regression with resolved vs unresolved as the outcome and victim age, sex and race as predictors. Save the output of glm as an R object; apply the broom::tidy to this object; and obtain the estimate and confidence interval of the adjusted odds ratio for solving homicides comparing male victims to female victims keeping all other variables fixed.
 ```{r}
 homicides_Baltimore<-
   homicides_df%>%
   filter(city_state=="Baltimore,MD")
-
-
 fit=glm(homicides_status~victim_age+victim_sex+victim_race,family = binomial(),homicides_Baltimore)
-
 ```
 
 ```{r}
@@ -100,7 +95,6 @@ homicide_all_cities =
     ) %>% 
   filter(str_detect(term,"Male")) %>% 
   select(city_state,adjusted_odd_ratio, conf_low, conf_high)
-homicide_all_cities
 
 ```
 
@@ -125,6 +119,7 @@ homicide_plot
 ```
 
 comments:
+when we only investigate the solved homicides amongh the female and male in each city, we found that the adjusted odd ratio is generally lower than one, so we could concluded that the homicides is less likely to be solved when the victim is male. The city with the lowest adjusted odd ratio included New York,NY, Long Beach,CA, and Baton Rouge, LA. in contrast, the city with the highest adjusted odd ratio included Albuquerque, MM, Minneapolis, MN, and Fresno, CA. 
 
 ## Problem 3
 
@@ -156,12 +151,12 @@ Stage1:Load the raw data
 
 ```{r}
 raw_data2<-read.csv(file = "./data/birthweight.csv")
-raw_data2
 ```
 clean the data for regression analysis
 1. convert categorical variable from numeric type to factor: 
 babysex,frace,malform,mrace
-2.check the missing
+2.check the missing value
+3. I found that there are actual only have one value in pnumlbw, and pnumsga, which will not contribute to modelling procedure, so I remove these out of the clean dataset.
 ```{r}
 clean_data<-
   raw_data2%>%
@@ -173,48 +168,39 @@ clean_data<-
   )%>%
   drop_na()%>%
   select(-pnumlbw,-pnumsga)
-clean_data
-  
 ```
 
 propose a regression model for birthweight. 
 
-choose the reasonable variables based on the correlation map, I decided to choose the top five variables that most related to the bwt (target variable).
-bhead,blength,frace,gaweeks,and mrace.
-
+I want to choose the potential correlated variables based on the corrplot, but corrplot only available for numeric variables. So I generated a new clean data set, which is similiar as the clean_data above except the variable type is numeric for each variable.
 ```{r}
+require(corrplot)
 clean_data2<-
   raw_data2%>%
   janitor::clean_names()%>%
   select(-pnumlbw,-pnumsga)%>%
   drop_na()
 corrplot(cor(clean_data2),method='color',order='alphabet')
-clean_data2
 ```
-our regression model
+choose the reasonable variables based on the correlation map, I decided to choose the top five variables that most related to the bwt (target variable).
+bhead,blength,frace,gaweeks,and mrace.so our regression model is model_1.
 ```{r}
 model_1<-lm(bwt ~ bhead+blength+gaweeks+frace+mrace, data = clean_data)
 summary(model_1)
-
-model_1_plot<-
-  modelr::add_residuals(model_1)%>%
-  modelr::add_predictions(model_1)%>%
-  ggplot(aes(x=pred,y=resid))+
-  geom_point()+
-  geom_smooth(method="lm")
 ```
 
-
-show a plot of model residuals against fitted values- use add_predictions and add_residuals in making this plot 
+show a plot of model residuals against fitted values- use add_predictions and add_residuals in making this plot .
 ```{r}
-fit_1<-lm(bwt ~ bhead + blength + gaweeks+ frace + mrace, data = clean_data)
-fit_1_plot<-
-  modelr::add_residuals(fit_1)%>%
-  modelr::add_predictions(fit_1)%>%
+clean_data%>%
+  add_residuals(model_1)%>%
+  add_predictions(model_1)%>%
   ggplot(aes(x=pred,y=resid))+
   geom_point()+
-  geom_smooth(method="lm")
-  
+  geom_smooth(method="lm",color="red")%>%
+  labs(
+    x="fitted_value",
+    y="residuals"
+  )
 ```
 
 compare my model to two others 
@@ -223,8 +209,42 @@ One using length at birth and gestational age as predictors (main effects only)
 One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
 
 ```{r}
-cv
-
+model_2<-lm(bwt~blength+gaweeks,data=clean_data)
+model_3<-lm(bwt~bhead+blength+babysex+bhead*blength+blength*babysex+bhead*babysex+bhead*babysex*blength,data=clean_data)
 ```
 
 Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
+```{r}
+cv_df =
+  crossv_mc(clean_data, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+```
+Next I’ll use mutate + map & map2 to fit models to training data and obtain corresponding RMSEs for the testing data.
+```{r}
+cv_df = 
+  cv_df %>% 
+  mutate(
+    model_1  = map(train, ~lm(bwt ~ bhead+blength+gaweeks+frace+mrace, data = .x)),
+    model_2  = map(train, ~lm(bwt~blength+gaweeks, data = .x)),
+    model_3  = map(train, ~lm(bwt~bhead+blength+babysex+bhead*blength+blength*babysex+bhead*babysex+bhead*babysex*blength, data = .x))) %>% 
+  mutate(
+    rmse_model_1 = map2_dbl(model_1, test, ~rmse(model = .x, data = .y)),
+    rmse_model_2 = map2_dbl(model_2, test, ~rmse(model = .x, data = .y)),
+    rmse_model_3 = map2_dbl(model_3, test, ~rmse(model = .x, data = .y)))
+```
+
+Finally, I’ll plot the prediction error distribution for each candidate model.
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+Based on the plot above, we can conclude that the model 1 have lower rmse than model 2 and model 3. So, we can assume that the model 1 is the most optimal model in these three models.
